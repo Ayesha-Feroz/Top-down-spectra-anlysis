@@ -1,0 +1,32 @@
+import pandas as pd
+from bokeh.io import output_notebook
+from bokeh.plotting import figure, show, output_file
+from bokeh.models import ColumnDataSource, HoverTool, NumeralTickFormatter, Label
+from bokeh.palettes import Category10
+
+df = pd.read_csv('/content/TOF_res70k_noise1e3_profile.tsv', sep='\t')
+output_notebook()
+cds = ColumnDataSource(data=df)
+
+def create_p(width=800, height=300,
+            main_title='Golden data analysis'):
+    tooltips = [
+        ('m/z','@MonoisotopicMass{0.0000}'),
+        ('Int','@SumIntensity')
+        ]
+    p = figure(
+        width=width, height=height,
+        title = main_title,
+        tools = 'xwheel_zoom,xpan,box_zoom,undo,reset',
+        tooltips=tooltips
+        )
+    return p
+p = create_p()
+
+p.vbar(
+    x = 'MonoisotopicMass', top = 'SumIntensity',
+    source = cds,
+    color = '#324ea8',# alpha = 0.8,
+    width = 0.001
+    )
+show(p)
