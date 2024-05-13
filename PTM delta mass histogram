@@ -1,0 +1,78 @@
+import pandas as pd
+import numpy as np
+from bokeh.io import show, output_notebook
+from bokeh.plotting import figure
+from bokeh.models import ColumnDataSource, HoverTool
+from bokeh.transform import factor_cmap
+
+# Load the dataset
+df = pd.read_csv('/content/Experimental deconvolved file.tsv', sep='\t')
+
+# Define true masses
+true_masses = np.array([9105.3, 11858.0, 21429.8, 28963.7, 50429.8, 67959.4])
+
+# Assume you have calculated the observed mass somewhere
+observed_masses = df['MonoisotopicMass'].values  # Adjust according to your column name
+
+# Calculate all delta masses
+delta_masses = np.concatenate([observed_masses - mass for mass in true_masses])
+
+# Bins for the histogram
+bins = np.arange(-100, 500, 1)  # Adjust as necessary
+hist, edges = np.histogram(delta_masses, bins=bins)
+
+# Prepare labels for PTMs, initially empty, filled only where applicable
+labels = [''] * len(hist)
+ptms = {
+      "Oxidation": 15.9949,
+    "Acetylation": 42.0106,
+    "Phospho": 79.966331,
+    "Acetyl": 42.010565,
+    "Amidated": -0.984016,
+    "Methyl": 14.015650,
+    "LRGG": 383.228103,
+    "Glu->pyro-Glu": -18.010565,
+    "Gln->pyro-Glu": -17.026549,
+    "Carboxy": 43.989829,
+    "Palmitoyl": 238.229666,
+    "Myristoyl": 210.198366,
+    "ADP-Ribosyl": 541.061110,
+    "Farnesyl": 204.187801,
+    "Nitrosyl": 28.990164,
+    "GeranylGeranyl": 272.250401,
+    "Formyl": 27.994915,
+    "Deamidated": 0.984016,
+    "Sulfo+amino": 94.967714,
+    "Met-loss": -131.040485,
+    "Met-loss+Acetyl": -89.029920
+}
+# Assign labels at relevant positions
+for ptm, shift in ptms.items():
+    bin_index = np.digitize([shift], bins)[0] - 1  # Get the bin index for each PTM
+    if bin_index < len(labels):
+        labels[bin_index] = f'{ptm} ({shift} Da)'
+
+# Create ColumnDataSource
+source = ColumnDataSource(data={
+    'top': hist,
+    'left': edges[:-1],
+    'right': edges[1:],
+    'label': labels
+})
+
+# Output to notebook
+output_notebook()
+
+# Create the plot
+p = figure(width=800, height=300, title="PTM Delta Mass Histogram",
+           tools="pan,wheel_zoom,box_zoom,reset", x_axis_label='Delta Mass (Da)', y_axis_label='Frequency')
+
+# Add quads for the histogram
+p.quad(bottom=0, top='top', left='left', right='right', source=source, fill_color='gray', line_color='black')
+
+# Add hover tool
+hover = HoverTool(tooltips=[("PTM", "@label"), ("Count", "@top")])
+p.add_tools(hover)
+
+# Show the plot
+show(p)
