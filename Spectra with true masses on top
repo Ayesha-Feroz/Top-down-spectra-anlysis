@@ -1,0 +1,84 @@
+import pandas as pd
+import numpy as np
+from bokeh.io import output_notebook, show
+from bokeh.plotting import figure
+from bokeh.models import ColumnDataSource, HoverTool, LabelSet
+from bokeh.layouts import gridplot
+
+# Load the dataset
+df = pd.read_csv('/content/Experimental deconvolved file.tsv', sep='\t')
+
+# Filter the dataset to include only those entries where TargetDecoyType = 0 and Qvalue <= 0.05
+filtered_df = df[(df['TargetDecoyType'] == 0) & (df['Qvalue'] <= 0.5)]
+
+# Define true masses
+true_masses = np.array([9105.3, 11858.0, 21429.8, 28963.7, 50429.8, 67959.4])
+
+# Function to find nearest intensity for a given mass
+def find_nearest_intensity(mass, dataframe, width=10):
+    # Find the subset of dataframe where mass is within a certain window
+    mass_window = dataframe[(dataframe['MonoisotopicMass'] >= mass - width) & (dataframe['MonoisotopicMass'] <= mass + width)]
+    if not mass_window.empty:
+        # Return the highest intensity in this window
+        return mass_window.loc[mass_window['SumIntensity'].idxmax()]['SumIntensity']
+    return None
+
+# Add markers for true masses
+true_mass_markers = {'mass': [], 'intensity': [], 'label': []}
+for mass in true_masses:
+    intensity = find_nearest_intensity(mass, filtered_df)
+    if intensity:
+        true_mass_markers['mass'].append(mass)
+        true_mass_markers['intensity'].append(intensity)
+        true_mass_markers['label'].append(f'{mass:.4f}')
+
+# Convert markers to ColumnDataSource
+true_mass_cds = ColumnDataSource(data=true_mass_markers)
+
+# Configure Bokeh to display plots in the notebook
+output_notebook()
+
+# Create a ColumnDataSource from the filtered DataFrame
+cds = ColumnDataSource(data=filtered_df)
+
+def create_p(width=800, height=300, main_title='Deconvolved PIP data set from FD'):
+    tooltips = [
+        ('m/z', '@MonoisotopicMass{0.0000}'),
+        ('Int', '@SumIntensity')
+    ]
+    p = figure(
+        width=width, height=height,
+        title=main_title,
+        tools='xwheel_zoom,xpan,box_zoom,undo,reset',
+        tooltips=tooltips
+    )
+    return p
+
+# Create the plot
+p = create_p()
+
+# Add a vertical bar plot to the figure
+p.vbar(
+    x='MonoisotopicMass', top='SumIntensity',
+    source=cds,
+    color='#324ea8',
+    width=0.001  # Set the width of the bars
+)
+
+# Add red dots for true masses
+p.circle(
+    x='mass', y='intensity',
+    source=true_mass_cds,
+    size=10,
+    color='red',
+    #legend_label='True Masses'
+)
+
+# Add labels above red dots
+labels = LabelSet(x='mass', y='intensity', text='label', level='glyph',
+                  x_offset=0, y_offset=3, source=true_mass_cds,
+                  text_font_size="8pt", text_color="black")
+p.add_layout(labels)
+
+# Show the plot
+show(p)
